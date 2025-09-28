@@ -6,6 +6,14 @@ from sklearn.tree import plot_tree
 from matplotlib.colors import LinearSegmentedColormap
 import phik
 
+from typing import Dict, List, Optional, Tuple, Any, Union
+
+
+DEFAULT_FIGSIZE = (8, 6)
+DEFAULT_PALETTE = "viridis"
+DEFAULT_GRID_ALPHA = 0.3
+
+
 def visualize_regression_tree(model, feature_names, figsize=(20, 10), max_depth=None):
     plt.figure(figsize=figsize)
     plot_tree(model,
@@ -17,6 +25,45 @@ def visualize_regression_tree(model, feature_names, figsize=(20, 10), max_depth=
               precision=2)
     plt.title('Regression Tree Visualization')
     plt.show()
+
+
+def _finalize_plot(title: str, xlabel: str = "", ylabel: str = "") -> None:
+    """Apply final styling and show plot."""
+    if title:
+        plt.title(title, fontsize=14, fontweight='bold')
+    if xlabel:
+        plt.xlabel(xlabel, fontsize=12)
+    if ylabel:
+        plt.ylabel(ylabel, fontsize=12)
+    plt.tight_layout()
+    plt.show()
+
+
+def mybarplot(
+    category_counts: pd.Series, 
+    title: str, 
+    ylabel: str, 
+    figsize: Tuple[int, int] = (4, 6), 
+    top_n: Optional[int] = None, 
+    color_palette: str = DEFAULT_PALETTE
+) -> None:
+    """Create a horizontal bar plot of category counts."""
+    # Limit to top n values if specified
+    if top_n is not None and len(category_counts) > top_n:
+        plot_data = category_counts.nlargest(top_n)
+    else:
+        plot_data = category_counts
+    
+    plt.figure(figsize=figsize)
+    plt.grid(axis='x', alpha=DEFAULT_GRID_ALPHA)
+    sns.barplot(x=plot_data.values,
+                y=plot_data.index,
+                hue=plot_data.index,
+                palette=color_palette,
+                orient='h',
+                legend=False,
+                dodge=False)
+    _finalize_plot(title, 'Frequency', ylabel)
 
 
 
@@ -473,3 +520,171 @@ def compare_metrics_heatmap(df1, df2, df1_name='DF1', df2_name='DF2',
     plt.tight_layout()
 
     return fig, delta
+
+def _plot_count_heatmap(
+    df: pd.DataFrame, 
+    freq_cols: List[str], 
+    classes: List[str], 
+    figsize: Tuple[int, int],
+    sort_by_class: Optional[Union[str, int]] = None
+) -> None:
+    """Plot heatmap of token frequencies across classes."""
+    # Prepare data for heatmap (transpose to have tokens on y-axis)
+    heatmap_data = df[freq_cols].copy()
+    heatmap_data.index = df['token']
+    heatmap_data.columns = [f'Class {cls}' for cls in classes]
+    
+    plt.figure(figsize=figsize)
+    sns.heatmap(
+        heatmap_data,
+        annot=True,
+        fmt='.3f',
+        cmap='YlOrRd',
+        cbar_kws={'label': 'Frequency'},
+        xticklabels=True,
+        yticklabels=True
+    )
+    
+    # Update title based on sorting
+    if sort_by_class is not None:
+        title = f'Token Frequencies Across Classes (sorted by Class {sort_by_class})'
+    else:
+        title = 'Token Frequencies Across Classes'
+    
+    plt.title(title, fontsize=14, fontweight='bold')
+    plt.xlabel('Classes', fontsize=12)
+    plt.ylabel('Tokens', fontsize=12)
+    plt.tight_layout()
+    plt.show()
+
+
+def _plot_count_bars(
+    df: pd.DataFrame, 
+    count_cols: List[str], 
+    classes: List[str], 
+    figsize: Tuple[int, int],
+    sort_by_class: Optional[Union[str, int]] = None
+) -> None:
+    """Plot grouped horizontal bar chart of token counts across classes."""
+    # Prepare data
+    tokens = df['token'].head(15)  # Limit for readability
+    data_subset = df[count_cols].head(15)
+    
+    # Set up the plot
+    y = np.arange(len(tokens))
+    height = 0.8 / len(classes)
+    
+    plt.figure(figsize=figsize)
+    
+    # Create horizontal bars for each class
+    for i, (col, cls) in enumerate(zip(count_cols, classes)):
+        plt.barh(y + i * height, data_subset[col], height, 
+                 label=f'Class {cls}', alpha=0.8)
+    
+    plt.xlabel('Count', fontsize=12)
+    plt.ylabel('Tokens', fontsize=12)
+    
+    # Update title based on sorting
+    if sort_by_class is not None:
+        title = f'Token Counts Across Classes (sorted by Class {sort_by_class})'
+    else:
+        title = 'Token Counts Across Classes'
+    
+    plt.title(title, fontsize=14, fontweight='bold')
+    plt.yticks(y + height * (len(classes) - 1) / 2, tokens)
+    plt.legend()
+    plt.grid(axis='x', alpha=0.3)
+    plt.tight_layout()
+    plt.show()
+
+
+def _plot_stacked_bars(
+    df: pd.DataFrame, 
+    count_cols: List[str], 
+    classes: List[str], 
+    figsize: Tuple[int, int],
+    sort_by_class: Optional[Union[str, int]] = None
+) -> None:
+    """Plot horizontal stacked bar chart of token counts across classes."""
+    # Prepare data
+    tokens = df['token'].head(20)
+    data_subset = df[count_cols].head(20)
+    
+    plt.figure(figsize=figsize)
+    
+    # Create horizontal stacked bars
+    left = np.zeros(len(tokens))
+    colors = plt.cm.Set3(np.linspace(0, 1, len(classes)))
+    
+    for col, cls, color in zip(count_cols, classes, colors):
+        plt.barh(tokens, data_subset[col], left=left, 
+                 label=f'Class {cls}', color=color, alpha=0.8)
+        left += data_subset[col]
+    
+    plt.xlabel('Count', fontsize=12)
+    plt.ylabel('Tokens', fontsize=12)
+    
+    # Update title based on sorting
+    if sort_by_class is not None:
+        title = f'Stacked Token Counts Across Classes (sorted by Class {sort_by_class})'
+    else:
+        title = 'Stacked Token Counts Across Classes'
+    
+    plt.title(title, fontsize=14, fontweight='bold')
+    plt.legend()
+    plt.grid(axis='x', alpha=0.3)
+    plt.tight_layout()
+    plt.show()
+
+
+def plot_count_based_analysis(
+    df: pd.DataFrame,
+    top_n: int = 20,
+    figsize: Tuple[int, int] = (12, 8),
+    plot_type: str = 'heatmap',
+    sort_by_class: Optional[Union[str, int]] = None
+) -> None:
+    """Visualize count-based analysis results for multi-class text classification.
+    
+    Args:
+        df: DataFrame from count_based_analysis function
+        top_n: Number of top tokens to display
+        figsize: Figure size tuple
+        plot_type: Type of plot ('heatmap', 'bar', 'stacked_bar')
+        sort_by_class: Class label to sort tokens by frequency (None for total_count sorting)
+    """
+    # Validate input
+    if 'token' not in df.columns:
+        raise ValueError("DataFrame must contain 'token' column")
+    
+    # Get class columns (count_X and freq_X)
+    count_cols = [col for col in df.columns if col.startswith('count_') and col != 'total_count']
+    freq_cols = [col for col in df.columns if col.startswith('freq_')]
+    
+    if not count_cols:
+        raise ValueError("No count columns found in DataFrame")
+    
+    # Extract class names from column names
+    classes = [col.replace('count_', '') for col in count_cols]
+    
+    # Sort DataFrame if sort_by_class is specified
+    if sort_by_class is not None:
+        sort_col = f'freq_{sort_by_class}'
+        if sort_col not in df.columns:
+            raise ValueError(f"Class '{sort_by_class}' not found. Available classes: {classes}")
+        sorted_df = df.sort_values(sort_col, ascending=False).copy()
+    else:
+        sorted_df = df.copy()
+    
+    # Select top N tokens
+    top_df = sorted_df.head(top_n).copy()
+    
+    if plot_type == 'heatmap':
+        _plot_count_heatmap(top_df, freq_cols, classes, figsize, sort_by_class)
+    elif plot_type == 'bar':
+        _plot_count_bars(top_df, count_cols, classes, figsize, sort_by_class)
+    elif plot_type == 'stacked_bar':
+        _plot_stacked_bars(top_df, count_cols, classes, figsize, sort_by_class)
+    else:
+        raise ValueError("plot_type must be one of: 'heatmap', 'bar', 'stacked_bar'")
+    
